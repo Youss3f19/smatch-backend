@@ -12,8 +12,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 const userRoutes = require('./routes/userRoutes');
+const teamRoutes = require('./routes/teamRoutes');
 
 app.use('/api/users', userRoutes);
+app.use('/api/teams', teamRoutes);
 
 // 404 handler
 app.use((req, res) => {
