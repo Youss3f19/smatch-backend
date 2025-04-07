@@ -9,15 +9,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
 // Routes
 const userRoutes = require('./routes/userRoutes');
 const teamRoutes = require('./routes/teamRoutes');
 const matchRoutes = require('./routes/matchRoutes');
+const playerRoutes = require('./routes/player');
+const organisateurRoutes = require('./routes/organisateur');
 
 app.use('/api/users', userRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
+app.use('/api/players', playerRoutes);
+app.use('/api/organisateurs', organisateurRoutes);
 
 // 404 handler
 app.use((req, res) => {
