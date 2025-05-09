@@ -1,3 +1,4 @@
+const { user } = require('@angular/fire/auth');
 const Player = require('../models/Player');
 
 // Participer à un match
@@ -24,5 +25,28 @@ exports.consulterClassement = async (req, res) => {
         res.status(200).send({ classement: player.consulterClassement() });
     } catch (err) {
         res.status(500).send('Error: ' + err.message);
+    }
+};
+
+// create player
+exports.createPlayer = async (req, res) => {
+    try {
+        const { birthDate, position, jerseyNumber, height, weight } = req.body;
+        
+        const userId = req.user._id; 
+        
+        const newPlayer = new Player({
+            user: userId,
+            birthDate,
+            position,
+            jerseyNumber,
+            height,
+            weight
+        });
+
+        await newPlayer.save();
+        res.status(201).send(newPlayer);
+    } catch (err) {
+        res.status(500).send('Error creating player: ' + err.message);
     }
 };

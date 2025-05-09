@@ -1,0 +1,18 @@
+const express = require('express');
+const router = express.Router();
+const TournamentController = require('../controllers/TournamentController');
+const auth = require('../middleware/auth');
+const authorize = require('../middleware/authorize'); // Optional role-based
+
+// Routes des tournois
+router.post('/tournaments', auth, authorize(['organizer']), TournamentController.createTournament);
+router.get('/tournaments', TournamentController.getAllTournaments);
+router.get('/tournaments/:id', TournamentController.getTournamentById);
+router.put('/tournaments/:id', auth, authorize(['organizer']), TournamentController.updateTournament);
+router.delete('/tournaments/:id', auth, authorize(['organizer']), TournamentController.deleteTournament);
+router.post('/tournaments/:id/join', auth, authorize(['player']), TournamentController.createJoinRequest);
+router.put('/tournaments/:id/join', auth, authorize(['organizer']), TournamentController.handleJoinRequest);
+router.post('/tournaments/:id/generate', auth, authorize(['organizer']), TournamentController.generateTournamentStructure);
+
+
+module.exports = router;

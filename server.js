@@ -13,14 +13,12 @@ app.use(express.urlencoded({ extended: true }));
 const userRoutes = require('./routes/userRoutes');
 const teamRoutes = require('./routes/teamRoutes');
 const matchRoutes = require('./routes/matchRoutes');
-const playerRoutes = require('./routes/player');
-const organisateurRoutes = require('./routes/organisateur');
+const tournamentRoutes = require('./routes/tournamentRoutes');
 
 app.use('/api/users', userRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
-app.use('/api/players', playerRoutes);
-app.use('/api/organisateurs', organisateurRoutes);
+app.use('/api/tournament', tournamentRoutes);
 
 // 404 handler
 app.use((req, res) => {

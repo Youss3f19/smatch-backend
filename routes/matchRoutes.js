@@ -1,11 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const matchController = require('../controllers/MatchController');
+const QuickMatchController = require('../controllers/QuickMatchController');
+const auth = require('../middleware/auth'); // Import auth middleware
+const authorize = require('../middleware/authorize'); // Import authorize middleware
 
-router.post('/createMatch', matchController.createMatch);
-router.get('/getAllMatchs', matchController.getAllMatchs);
-router.get('/:id', matchController.getMatchById);
-router.put('/:id', matchController.updateMatch);
-router.delete('/:id', matchController.deleteMatch);
+
+// Routes des matchs rapides
+router.post('/quick-matches', auth, authorize(['player']), QuickMatchController.createQuickMatch);
+router.post('/quick-matches/:id/join', auth, authorize(['player']), QuickMatchController.joinQuickMatch);
+router.post('/quick-matches/:id/request-join', auth, authorize(['player']), QuickMatchController.requestToJoinQuickMatch);
+router.put('/quick-matches/:id/handle-join', auth, authorize(['player']), QuickMatchController.handleJoinRequest);
+router.get('/quick-matches', QuickMatchController.getQuickMatches);
+router.put('/quick-matches/:id', auth, authorize(['player']), QuickMatchController.updateQuickMatch);
+router.delete('/quick-matches/:id', auth, authorize(['player']), QuickMatchController.deleteQuickMatch);
 
 module.exports = router;

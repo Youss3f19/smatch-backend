@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-mongoose.connect("mongodb://localhost:27017/GEP")
+mongoose.connect("mongodb://localhost:27017/SMATCH")
     .then( 
         ()=>{console.log('Connected to MongoDB Atlas');}
     )

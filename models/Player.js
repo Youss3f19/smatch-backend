@@ -1,22 +1,18 @@
 const mongoose = require('mongoose');
-const User = require('./User');
-
-const options = { discriminatorKey: 'role', collection: 'users' };
 
 const playerSchema = new mongoose.Schema({
-  classement: String,
-  styleDeJeu: String,
-  postePrefere: String,
-  statistiques: Object // or define schema if needed
-}, options);
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  birthDate: Date,
+  position: String,
+  jerseyNumber: Number,
+  height: Number,
+  weight: Number,
+  likes: [
+    { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  ],
+  friends: [
+    { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  ]
+});
 
-// Functions specific to Player
-playerSchema.methods.participerMatch = function(matchId) {
-  // Your logic to register player in a match
-};
-
-playerSchema.methods.consulterClassement = function() {
-  return this.classement;
-};
-
-module.exports = User.discriminator('player', playerSchema);
+module.exports = mongoose.model('Player', playerSchema);

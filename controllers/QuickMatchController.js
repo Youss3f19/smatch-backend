@@ -1,27 +1,19 @@
 const mongoose = require('mongoose');
-const Match = require('../models/Match');
+const QuickMatch = require('../models/QuickMatch');
 const Team = require('../models/Team');
-const User = require('../models/User');
 
-
-// Créer un match rapide de volleyball
+// Créer un match rapide
 exports.createQuickMatch = async (req, res) => {
   try {
-    const { isPublic, teamName, terrainType, maxSets } = req.body;
+    const { isPublic, teamName } = req.body;
 
     // Créer une équipe rapide pour le créateur
     const quickTeam = new Team({
-      teamName: teamName || `Volley Team ${Date.now()}`,
+      teamName: teamName || `Quick Team ${Date.now()}`,
       teamLeader: req.user._id,
       players: [req.user._id],
       teamType: 'quick'
     });
-
-    // Vérifier que l'équipe a au moins 6 joueurs (simulé ici, à compléter avec la logique réelle)
-    if (quickTeam.players.length < 6) {
-      return res.status(400).json({ message: 'L\'équipe doit avoir au moins 6 joueurs pour un match de volleyball' });
-    }
-
     await quickTeam.save();
 
     // Créer le match rapide
@@ -30,17 +22,14 @@ exports.createQuickMatch = async (req, res) => {
       team2: null,
       isPublic: isPublic !== undefined ? isPublic : true,
       creator: req.user._id,
-      joinRequests: [],
-      terrainType: terrainType || 'indoor',
-      maxSets: maxSets || 3,
-      sets: []
+      joinRequests: []
     });
     await match.save();
 
     // Peupler les champs pour la réponse
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players')
-      .populate('team2', 'teamName players')
+      .populate('team1', 'teamName')
+      .populate('team2', 'teamName')
       .populate('creator', 'username')
       .populate('joinRequests.team', 'teamName');
 
@@ -73,10 +62,6 @@ exports.requestToJoinQuickMatch = async (req, res) => {
       return res.status(403).json({ message: 'Seul le chef d\'équipe peut demander à rejoindre' });
     }
 
-    if (team.players.length < 6) {
-      return res.status(400).json({ message: 'L\'équipe doit avoir au moins 6 joueurs pour un match de volleyball' });
-    }
-
     if (match.team1 && match.team2) {
       return res.status(400).json({ message: 'Le match est déjà complet' });
     }
@@ -89,8 +74,8 @@ exports.requestToJoinQuickMatch = async (req, res) => {
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players')
-      .populate('team2', 'teamName players')
+      .populate('team1', 'teamName')
+      .populate('team2', 'teamName')
       .populate('creator', 'username')
       .populate('joinRequests.team', 'teamName');
 
@@ -125,18 +110,14 @@ exports.handleJoinRequest = async (req, res) => {
     joinRequest.status = status;
 
     if (status === 'accepted' && !match.team2) {
-      const team = await Team.findById(teamId);
-      if (team.players.length < 6) {
-        return res.status(400).json({ message: 'L\'équipe doit avoir au moins 6 joueurs pour un match de volleyball' });
-      }
       match.team2 = teamId;
     }
 
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players')
-      .populate('team2', 'teamName players')
+      .populate('team1', 'teamName')
+      .populate('team2', 'teamName')
       .populate('creator', 'username')
       .populate('joinRequests.team', 'teamName');
 
@@ -167,19 +148,13 @@ exports.joinQuickMatch = async (req, res) => {
     let quickTeam = await Team.findOne({ teamLeader: req.user._id, teamType: 'quick' });
     if (!quickTeam) {
       quickTeam = new Team({
-        teamName: `Volley Team ${Date.now()}`,
+        teamName: `Quick Team ${Date.now()}`,
         teamLeader: req.user._id,
-        players: [req.user._id], // À compléter avec d'autres joueurs
+        players: [req.user._id],
         teamType: 'quick'
       });
+      await quickTeam.save();
     }
-
-    // Vérifier le nombre de joueurs (simulé, à compléter)
-    if (quickTeam.players.length < 6) {
-      return res.status(400).json({ message: 'L\'équipe doit avoir au moins 6 joueurs pour un match de volleyball' });
-    }
-
-    await quickTeam.save();
 
     if (!match.team1) {
       match.team1 = quickTeam._id;
@@ -190,8 +165,8 @@ exports.joinQuickMatch = async (req, res) => {
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players')
-      .populate('team2', 'teamName players')
+      .populate('team1', 'teamName')
+      .populate('team2', 'teamName')
       .populate('creator', 'username')
       .populate('joinRequests.team', 'teamName');
 
@@ -205,8 +180,8 @@ exports.joinQuickMatch = async (req, res) => {
 exports.getQuickMatches = async (req, res) => {
   try {
     const matches = await QuickMatch.find()
-      .populate('team1', 'teamName players')
-      .populate('team2', 'teamName players')
+      .populate('team1', 'teamName')
+      .populate('team2', 'teamName')
       .populate('creator', 'username')
       .populate('winner', 'teamName')
       .populate('joinRequests.team', 'teamName');
@@ -216,7 +191,7 @@ exports.getQuickMatches = async (req, res) => {
   }
 };
 
-// Mettre à jour un match rapide (scores des sets, gagnant, etc.)
+// Mettre à jour un match rapide
 exports.updateQuickMatch = async (req, res) => {
   try {
     const match = await QuickMatch.findById(req.params.id);
@@ -229,34 +204,12 @@ exports.updateQuickMatch = async (req, res) => {
       return res.status(403).json({ message: 'Non autorisé' });
     }
 
-    const { sets, score1, score2, winner } = req.body;
-
-    if (sets) {
-      match.sets = sets;
-      // Calculer les sets gagnés pour déterminer le gagnant
-      const team1SetsWon = match.sets.filter(set => set.team1Score > set.team2Score && (set.team1Score >= 25 || (match.sets.length === match.maxSets && set.team1Score >= 15)) && set.team1Score - set.team2Score >= 2).length;
-      const team2SetsWon = match.sets.filter(set => set.team2Score > set.team1Score && (set.team2Score >= 25 || (match.sets.length === match.maxSets && set.team2Score >= 15)) && set.team2Score - set.team1Score >= 2).length;
-
-      match.score1 = team1SetsWon;
-      match.score2 = team2SetsWon;
-
-      const setsToWin = Math.ceil(match.maxSets / 2);
-      if (team1SetsWon >= setsToWin) {
-        match.winner = match.team1;
-      } else if (team2SetsWon >= setsToWin) {
-        match.winner = match.team2;
-      }
-    }
-
-    if (score1 !== undefined) match.score1 = score1;
-    if (score2 !== undefined) match.score2 = score2;
-    if (winner) match.winner = winner;
-
+    Object.assign(match, req.body);
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players')
-      .populate('team2', 'teamName players')
+      .populate('team1', 'teamName')
+      .populate('team2', 'teamName')
       .populate('creator', 'username')
       .populate('joinRequests.team', 'teamName');
 
