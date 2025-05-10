@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const TournamentController = require('../controllers/TournamentController');
 const auth = require('../middleware/auth');
-const authorize = require('../middleware/authorize'); // Optional role-based
+const authorize = require('../middleware/authorize');
 
 // Routes des tournois
 router.post('/tournaments', auth, authorize(['organizer']), TournamentController.createTournament);
@@ -13,6 +13,7 @@ router.delete('/tournaments/:id', auth, authorize(['organizer']), TournamentCont
 router.post('/tournaments/:id/join', auth, authorize(['player']), TournamentController.createJoinRequest);
 router.put('/tournaments/:id/join', auth, authorize(['organizer']), TournamentController.handleJoinRequest);
 router.post('/tournaments/:id/generate', auth, authorize(['organizer']), TournamentController.generateTournamentStructure);
-
+router.put('/tournaments/:id/matches/:matchId', auth, authorize(['player']), TournamentController.updateMatchResult);
+router.get('/tournaments/:id/matches-by-round', TournamentController.getMatchesByRound);
 
 module.exports = router;

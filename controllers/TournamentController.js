@@ -1,9 +1,8 @@
 const mongoose = require('mongoose');
 const Tournament = require('../models/Tournament');
+const TournamentMatch = require('../models/tournamentMatch');
 const Match = require('../models/Match');
 const Team = require('../models/Team');
-
-
 
 // Créer un tournoi
 exports.createTournament = async (req, res) => {
@@ -207,9 +206,9 @@ exports.generateTournamentStructure = async (req, res) => {
       return res.status(404).json({ message: 'Tournoi non trouvé' });
     }
 
-    if (!tournament.organizer.some(org => org.toString() === req.user._id.toString())) {
-      return res.status(403).json({ message: 'Non autorisé' });
-    }
+    // if (!tournament.organizer.some(org => org.toString() === req.user._id.toString())) {
+    //   return res.status(403).json({ message: 'Non autorisé' });
+    // }
 
     if (tournament.teams.length < 2) {
       return res.status(400).json({ message: 'Le tournoi doit avoir au moins 2 équipes' });
@@ -224,10 +223,12 @@ exports.generateTournamentStructure = async (req, res) => {
     const matches = [];
 
     if (tournament.tournamentType === 'SingleElimination') {
-      // Calculer le nombre de rondes
       const numTeams = teams.length;
       const rounds = Math.ceil(Math.log2(numTeams));
       tournament.structure.rounds = rounds;
+
+      // Créer une liste pour stocker les matchs par ronde
+      const matchesByRound = Array.from({ length: rounds }, () => []);
 
       // Créer les matchs pour la première ronde
       const firstRoundMatches = Math.ceil(numTeams / 2);
@@ -244,9 +245,10 @@ exports.generateTournamentStructure = async (req, res) => {
         });
         await match.save();
         matches.push(match._id);
+        matchesByRound[0].push(match);
       }
 
-      // Créer les matchs pour les rondes suivantes (placeholders)
+      // Créer les matchs pour les rondes suivantes et lier avec nextMatch
       for (let round = 2; round <= rounds; round++) {
         const numMatches = Math.ceil(firstRoundMatches / Math.pow(2, round - 1));
         for (let i = 0; i < numMatches; i++) {
@@ -262,10 +264,24 @@ exports.generateTournamentStructure = async (req, res) => {
           });
           await match.save();
           matches.push(match._id);
+          matchesByRound[round - 1].push(match);
+
+          // Lier les matchs de la ronde précédente à ce match
+          const prevRound = round - 1;
+          const prevMatch1 = matchesByRound[prevRound - 1][i * 2];
+          const prevMatch2 = matchesByRound[prevRound - 1][i * 2 + 1] || null;
+
+          if (prevMatch1) {
+            prevMatch1.nextMatch = match._id;
+            await prevMatch1.save();
+          }
+          if (prevMatch2) {
+            prevMatch2.nextMatch = match._id;
+            await prevMatch2.save();
+          }
         }
       }
     } else if (tournament.tournamentType === 'GroupKnockout') {
-      // Créer des groupes (par exemple, 4 équipes par groupe)
       const teamsPerGroup = 4;
       const numGroups = Math.ceil(teams.length / teamsPerGroup);
       const groups = [];
@@ -274,7 +290,6 @@ exports.generateTournamentStructure = async (req, res) => {
         const groupTeams = teams.slice(i * teamsPerGroup, (i + 1) * teamsPerGroup);
         const groupMatches = [];
 
-        // Générer des matchs RoundRobin dans chaque groupe
         for (let j = 0; j < groupTeams.length; j++) {
           for (let k = j + 1; k < groupTeams.length; k++) {
             const match = new TournamentMatch({
@@ -302,12 +317,10 @@ exports.generateTournamentStructure = async (req, res) => {
       }
 
       tournament.structure.groups = groups;
-      tournament.structure.rounds = 1; // Phase de groupes
+      tournament.structure.rounds = 1;
 
-      // Ajouter une phase à élimination directe (par exemple, demi-finales et finale)
       if (numGroups > 1) {
         const knockoutMatches = [];
-        // Exemple : Top 2 de chaque groupe passent en demi-finales
         for (let i = 0; i < 2; i++) {
           const match = new TournamentMatch({
             team1: null,
@@ -323,7 +336,6 @@ exports.generateTournamentStructure = async (req, res) => {
           knockoutMatches.push(match._id);
           matches.push(match._id);
         }
-        // Finale
         const finalMatch = new TournamentMatch({
           team1: null,
           team2: null,
@@ -351,6 +363,117 @@ exports.generateTournamentStructure = async (req, res) => {
       .populate('structure.groups.matches');
 
     res.json(populatedTournament);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Mettre à jour le résultat d'un match
+exports.updateMatchResult = async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const { sets, winnerId } = req.body;
+
+    const match = await TournamentMatch.findById(matchId).populate('team1 team2');
+    if (!match) {
+      return res.status(404).json({ message: 'Match non trouvé' });
+    }
+
+    const tournament = await Tournament.findById(match.tournament);
+    if (!tournament) {
+      return res.status(404).json({ message: 'Tournoi non trouvé' });
+    }
+
+    // if (!tournament.organizer.some(org => org.toString() === req.user._id.toString())) {
+    //   return res.status(403).json({ message: 'Non autorisé' });
+    // }
+
+    // Valider que le gagnant appartient au match
+    if (winnerId && ![match.team1?._id.toString(), match.team2?._id.toString()].includes(winnerId)) {
+      return res.status(400).json({ message: 'L\'équipe gagnante doit être l\'une des équipes du match' });
+    }
+
+    // Mettre à jour les sets et le gagnant
+    match.sets = sets || [];
+    match.winner = winnerId || null;
+    // Ne pas définir score1/score2 pour TournamentMatch, car utilisé pour Match de base
+    await match.save();
+
+    // Propager le gagnant au match suivant
+    if (match.nextMatch && winnerId) {
+      const nextMatch = await TournamentMatch.findById(match.nextMatch);
+      if (nextMatch) {
+        const prevMatches = await TournamentMatch.find({ nextMatch: nextMatch._id });
+        const matchIndex = prevMatches.findIndex(m => m._id.toString() === match._id.toString());
+
+        if (matchIndex === 0) {
+          nextMatch.team1 = winnerId;
+        } else if (matchIndex === 1) {
+          nextMatch.team2 = winnerId;
+        }
+
+        await nextMatch.save();
+
+        // Réinitialiser les matchs suivants si nécessaire
+        if (nextMatch.winner) {
+          await resetSubsequentMatches(nextMatch);
+        }
+      }
+    }
+
+    const populatedMatch = await TournamentMatch.findById(matchId)
+      .populate('team1', 'teamName')
+      .populate('team2', 'teamName')
+      .populate('winner', 'teamName')
+      .populate('nextMatch');
+
+    res.json(populatedMatch);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Réinitialiser les matchs suivants
+async function resetSubsequentMatches(match) {
+  if (!match || !match.nextMatch) return;
+
+  const nextMatch = await TournamentMatch.findById(match.nextMatch);
+  if (nextMatch) {
+    nextMatch.winner = null;
+    nextMatch.sets = [];
+    nextMatch.team1 = null;
+    nextMatch.team2 = null;
+    await nextMatch.save();
+    await resetSubsequentMatches(nextMatch);
+  }
+}
+
+// Récupérer les matchs par ronde
+exports.getMatchesByRound = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id)
+      .populate({
+        path: 'structure.matches',
+        populate: [
+          { path: 'team1', select: 'teamName' },
+          { path: 'team2', select: 'teamName' },
+          { path: 'winner', select: 'teamName' }
+        ]
+      });
+
+    if (!tournament) {
+      return res.status(404).json({ message: 'Tournoi non trouvé' });
+    }
+
+    const matchesByRound = {};
+    tournament.structure.matches.forEach(match => {
+      if (!matchesByRound[match.round]) {
+        matchesByRound[match.round] = [];
+      }
+      matchesByRound[match.round].push(match);
+    });
+
+    res.json(matchesByRound);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

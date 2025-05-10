@@ -6,6 +6,6 @@ const matchSchema = new mongoose.Schema({
   score1: { type: Number, default: null },
   score2: { type: Number, default: null },
   winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null }
-}, { timestamps: true });
+}, { timestamps: true , discriminatorKey: 'kind' });
 
 module.exports = mongoose.model('Match', matchSchema);
