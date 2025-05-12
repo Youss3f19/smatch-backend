@@ -372,49 +372,63 @@ exports.generateTournamentStructure = async (req, res) => {
 exports.updateMatchResult = async (req, res) => {
   try {
     const { matchId } = req.params;
-    const { sets, winnerId } = req.body;
+    const { sets } = req.body;
 
     const match = await TournamentMatch.findById(matchId).populate('team1 team2');
-    if (!match) {
-      return res.status(404).json({ message: 'Match non trouvé' });
-    }
+    if (!match) return res.status(404).json({ message: 'Match non trouvé' });
 
     const tournament = await Tournament.findById(match.tournament);
-    if (!tournament) {
-      return res.status(404).json({ message: 'Tournoi non trouvé' });
+    if (!tournament) return res.status(404).json({ message: 'Tournoi non trouvé' });
+
+    if (!Array.isArray(sets) || sets.length === 0) {
+      return res.status(400).json({ message: 'Les sets doivent être fournis sous forme de tableau non vide.' });
     }
 
-    // if (!tournament.organizer.some(org => org.toString() === req.user._id.toString())) {
-    //   return res.status(403).json({ message: 'Non autorisé' });
-    // }
-
-    // Valider que le gagnant appartient au match
-    if (winnerId && ![match.team1?._id.toString(), match.team2?._id.toString()].includes(winnerId)) {
-      return res.status(400).json({ message: 'L\'équipe gagnante doit être l\'une des équipes du match' });
+    const valid = sets.every(set =>
+      typeof set.team1Score === 'number' &&
+      typeof set.team2Score === 'number'
+    );
+    if (!valid) {
+      return res.status(400).json({ message: 'Chaque set doit contenir les scores team1Score et team2Score.' });
     }
 
-    // Mettre à jour les sets et le gagnant
-    match.sets = sets || [];
-    match.winner = winnerId || null;
-    // Ne pas définir score1/score2 pour TournamentMatch, car utilisé pour Match de base
+    // Compter les sets gagnés
+    let team1Wins = 0;
+    let team2Wins = 0;
+    for (const set of sets) {
+      if (set.team1Score > set.team2Score) team1Wins++;
+      else if (set.team2Score > set.team1Score) team2Wins++;
+    }
+
+    const requiredWins = Math.ceil((match.maxSets || 3) / 2);
+    let winnerId = null;
+
+    if (team1Wins >= requiredWins) winnerId = match.team1?._id;
+    else if (team2Wins >= requiredWins) winnerId = match.team2?._id;
+    else {
+      return res.status(400).json({ message: 'Aucune équipe n\'a encore gagné le match.' });
+    }
+
+    // ✅ Mettre à jour les scores globaux du match (score1 et score2)
+    match.sets = sets;
+    match.score1 = team1Wins;
+    match.score2 = team2Wins;
+    match.winner = winnerId;
+
     await match.save();
 
-    // Propager le gagnant au match suivant
+    // Propagation au match suivant si besoin
     if (match.nextMatch && winnerId) {
       const nextMatch = await TournamentMatch.findById(match.nextMatch);
       if (nextMatch) {
         const prevMatches = await TournamentMatch.find({ nextMatch: nextMatch._id });
         const matchIndex = prevMatches.findIndex(m => m._id.toString() === match._id.toString());
 
-        if (matchIndex === 0) {
-          nextMatch.team1 = winnerId;
-        } else if (matchIndex === 1) {
-          nextMatch.team2 = winnerId;
-        }
+        if (matchIndex === 0) nextMatch.team1 = winnerId;
+        else if (matchIndex === 1) nextMatch.team2 = winnerId;
 
         await nextMatch.save();
 
-        // Réinitialiser les matchs suivants si nécessaire
         if (nextMatch.winner) {
           await resetSubsequentMatches(nextMatch);
         }

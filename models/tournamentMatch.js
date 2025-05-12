@@ -8,7 +8,6 @@ const tournamentMatchSchema = new mongoose.Schema({
   groupName: { type: String, default: null },
   team1: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
   team2: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
-  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
   sets: [{ type: mongoose.Schema.Types.Mixed }],
   terrainType: { type: String, default: 'indoor' },
   maxSets: { type: Number, default: 3 },
