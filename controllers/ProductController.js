@@ -7,7 +7,7 @@ exports.createProduct = async (req, res) => {
 
     // Handle photo upload
     if (req.file) {
-      productData.photo = req.file.path;
+      productData.photo = req.file.path; 
     }
 
     const product = new Product(productData);
@@ -23,13 +23,16 @@ exports.createProduct = async (req, res) => {
 exports.getAllProducts = async (req, res) => {
   try {
     const products = await Product.find()
-      .populate('category', 'name'); // Populate category if it’s an ObjectId reference
+      .populate('category', 'name'); 
 
     // Transform photo paths to full URLs
     const productsWithUrls = products.map(product => {
       const productObj = product.toObject();
       if (productObj.photo) {
-        productObj.photo = `${req.protocol}://${req.get('host')}/${productObj.photo}`;
+        const photoPath = productObj.photo.startsWith('/uploads') 
+          ? productObj.photo.replace('/uploads', '/uploads') 
+          : `/uploads/${productObj.photo.split('/').pop()}`; 
+        productObj.photo = `${req.protocol}://${req.get('host')}${photoPath}`;
       }
       return productObj;
     });
@@ -45,7 +48,7 @@ exports.getAllProducts = async (req, res) => {
 exports.getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
-      .populate('category', 'name'); // Populate category if it’s an ObjectId reference
+      .populate('category', 'name'); 
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.status(200).json(product);
   } catch (err) {
@@ -61,11 +64,11 @@ exports.updateProduct = async (req, res) => {
 
     // Handle photo upload
     if (req.file) {
-      updateData.photo = req.file.path;
+      updateData.photo = req.file.path; 
     }
 
     const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true })
-      .populate('category', 'name'); // Populate category if it’s an ObjectId reference
+      .populate('category', 'name'); 
     if (!updated) return res.status(404).json({ message: 'Product not found' });
     res.status(200).json(updated);
   } catch (err) {
@@ -90,7 +93,7 @@ exports.deleteProduct = async (req, res) => {
 exports.getProductsByCategory = async (req, res) => {
   try {
     const products = await Product.find({ category: req.params.categoryId })
-      .populate('category', 'name'); // Populate category if it’s an ObjectId reference
+      .populate('category', 'name');
     res.status(200).json(products);
   } catch (err) {
     console.error('Error retrieving products by category:', err);
