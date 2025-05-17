@@ -17,6 +17,7 @@ const tournamentRoutes = require('./routes/tournamentRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const playerRoutes = require('./routes/playerRoutes');
 
 app.use('/api/users', userRoutes);
 app.use('/api/teams', teamRoutes);
@@ -25,6 +26,7 @@ app.use('/api/tournament', tournamentRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/players', playerRoutes);
 
 // 404 handler
 app.use((req, res) => {
