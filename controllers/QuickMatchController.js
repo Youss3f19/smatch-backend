@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
-const QuickMatch = require('../models/QuickMatch');
+const Match = require('../models/Match');
 const Team = require('../models/Team');
 const User = require('../models/User');
-const Invitation = require('../models/Invitation');
+const QuickMatch = require('../models/QuickMatch');
 
-// Créer un match rapide
+// Créer un match rapide de volleyball
 exports.createQuickMatch = async (req, res) => {
   try {
     const { isPublic, team1Name, team2Name, date, location, terrainType, maxSets } = req.body;
@@ -20,18 +20,19 @@ exports.createQuickMatch = async (req, res) => {
       return res.status(400).json({ message: 'Match date must be in the future' });
     }
 
-    // Créer deux équipes rapides pour le match
+    // Créer l'équipe 1 avec le créateur
     const team1 = new Team({
-      teamName: team1Name || `Quick Team 1 ${Date.now()}`,
+      teamName: team1Name || `Volley Team 1 ${Date.now()}`,
       teamLeader: req.user._id,
       players: [req.user._id],
       teamType: 'quick'
     });
     await team1.save();
 
+    // Créer l'équipe 2 vide
     const team2 = new Team({
-      teamName: team2Name || `Quick Team 2 ${Date.now()}`,
-      teamLeader: req.user._id,
+      teamName: team2Name || `Volley Team 2 ${Date.now()}`,
+      teamLeader: null,
       players: [],
       teamType: 'quick'
     });
@@ -44,201 +45,22 @@ exports.createQuickMatch = async (req, res) => {
       isPublic: isPublic !== undefined ? isPublic : true,
       creator: req.user._id,
       joinRequests: [],
-      date: matchDate,
-      location,
       terrainType: terrainType || 'indoor',
-      maxSets: maxSets || 3
+      maxSets: maxSets || 3,
+      sets: [],
+      date: matchDate,
+      location
     });
     await match.save();
 
     // Peupler les champs pour la réponse
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username');
+      .populate('team1', 'teamName players')
+      .populate('team2', 'teamName players')
+      .populate('creator', 'username')
+      .populate('joinRequests.team', 'teamName');
 
     res.status(201).json(populatedMatch);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
-// Inviter un joueur à rejoindre un match rapide
-exports.invitePlayerToQuickMatch = async (req, res) => {
-  try {
-    const { playerId, teamId } = req.body;
-    const match = await QuickMatch.findById(req.params.id);
-
-    if (!match) {
-      return res.status(404).json({ message: 'Match rapide non trouvé' });
-    }
-
-    if (match.creator.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Seul le créateur peut inviter des joueurs' });
-    }
-
-    if (![match.team1.toString(), match.team2.toString()].includes(teamId)) {
-      return res.status(400).json({ message: 'Équipe invalide pour ce match' });
-    }
-
-    const team = await Team.findById(teamId);
-    if (team.players.length >= 6) {
-      return res.status(400).json({ message: 'L\'équipe a déjà atteint la limite de 6 joueurs' });
-    }
-
-    const player = await User.findById(playerId);
-    if (!player) {
-      return res.status(404).json({ message: 'Joueur non trouvé' });
-    }
-
-    // Vérifier si le joueur est déjà dans une équipe
-    const team1 = await Team.findById(match.team1);
-    const team2 = await Team.findById(match.team2);
-    if (team1.players.includes(playerId) || team2.players.includes(playerId)) {
-      return res.status(400).json({ message: 'Le joueur est déjà dans une équipe' });
-    }
-
-    // Vérifier les invitations existantes
-    const existingInvitation = await Invitation.findOne({
-      userId: playerId,
-      quickMatch: match._id,
-      status: { $in: ['pending', 'accepted'] }
-    });
-    if (existingInvitation) {
-      return res.status(400).json({ message: 'Une invitation active existe déjà pour ce joueur' });
-    }
-
-    // Créer une nouvelle invitation
-    const invitation = new Invitation({
-      userId: playerId,
-      quickMatch: match._id,
-      team: teamId,
-      status: 'pending'
-    });
-    await invitation.save();
-
-    const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username');
-
-    res.json({
-      message: 'Invitation envoyée avec succès',
-      match: populatedMatch,
-      invitation
-    });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
-// Répondre à une invitation ou une demande de participation
-exports.handleJoinRequest = async (req, res) => {
-  try {
-    const { userId, status, isInvitation } = req.body;
-    const match = await QuickMatch.findById(req.params.id);
-
-    if (!match) {
-      return res.status(404).json({ message: 'Match rapide non trouvé' });
-    }
-
-    let target;
-    if (isInvitation) {
-      // Gérer une réponse à une invitation
-      target = await Invitation.findOne({ userId, quickMatch: match._id });
-      if (!target) {
-        return res.status(404).json({ message: 'Invitation non trouvée' });
-      }
-      if (req.user._id.toString() !== userId) {
-        return res.status(403).json({ message: 'Seul le joueur invité peut répondre' });
-      }
-    } else {
-      // Gérer une demande de participation
-      target = match.joinRequests.find(request => request.user.toString() === userId);
-      if (!target) {
-        return res.status(404).json({ message: 'Demande de participation non trouvée' });
-      }
-      if (match.creator.toString() !== req.user._id.toString()) {
-        return res.status(403).json({ message: 'Seul le créateur peut gérer les demandes' });
-      }
-    }
-
-    const team = await Team.findById(target.team);
-    if (!team) {
-      return res.status(404).json({ message: 'Équipe non trouvée' });
-    }
-
-    if (status === 'accepted' && team.players.length >= 6) {
-      return res.status(400).json({ message: 'L\'équipe a déjà atteint la limite de 6 joueurs' });
-    }
-
-    // Mettre à jour le statut
-    target.status = status;
-
-    if (status === 'accepted') {
-      team.players.push(userId);
-      await team.save();
-    }
-
-    // Supprimer la demande/invitation après traitement
-    if (isInvitation) {
-      await target.deleteOne();
-    } else {
-      match.joinRequests = match.joinRequests.filter(
-        request => request.user.toString() !== userId
-      );
-      await match.save();
-    }
-
-    const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username');
-
-    res.json(populatedMatch);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
-// Rejoindre un match rapide (public uniquement)
-exports.joinQuickMatch = async (req, res) => {
-  try {
-    const { teamId } = req.body;
-    const match = await QuickMatch.findById(req.params.id);
-
-    if (!match) {
-      return res.status(404).json({ message: 'Match rapide non trouvé' });
-    }
-
-    if (!match.isPublic) {
-      return res.status(403).json({ message: 'Impossible de rejoindre directement un match privé. Veuillez demander une invitation.' });
-    }
-
-    if (![match.team1.toString(), match.team2.toString()].includes(teamId)) {
-      return res.status(400).json({ message: 'Équipe invalide pour ce match' });
-    }
-
-    const team = await Team.findById(teamId);
-    if (team.players.length >= 6) {
-      return res.status(400).json({ message: 'L\'équipe a déjà atteint la limite de 6 joueurs' });
-    }
-
-    const team1 = await Team.findById(match.team1);
-    const team2 = await Team.findById(match.team2);
-    if (team1.players.includes(req.user._id) || team2.players.includes(req.user._id)) {
-      return res.status(400).json({ message: 'Vous êtes déjà dans une équipe' });
-    }
-
-    team.players.push(req.user._id);
-    await team.save();
-
-    const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username');
-
-    res.json(populatedMatch);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -255,55 +77,139 @@ exports.requestToJoinQuickMatch = async (req, res) => {
     }
 
     if (match.isPublic) {
-      return res.status(400).json({ message: 'Les matchs publics peuvent être rejoints directement' });
-    }
-
-    if (![match.team1.toString(), match.team2.toString()].includes(teamId)) {
-      return res.status(400).json({ message: 'Équipe invalide pour ce match' });
+      return res.status(400).json({ message: 'Impossible de demander à rejoindre un match public' });
     }
 
     const team = await Team.findById(teamId);
-    if (team.players.length >= 6) {
-      return res.status(400).json({ message: 'L\'équipe a déjà atteint la limite de 6 joueurs' });
+    if (!team) {
+      return res.status(404).json({ message: 'Équipe non trouvée' });
     }
 
-    const team1 = await Team.findById(match.team1);
-    const team2 = await Team.findById(match.team2);
-    if (team1.players.includes(req.user._id) || team2.players.includes(req.user._id)) {
-      return res.status(400).json({ message: 'Vous êtes déjà dans une équipe' });
+    if (!team.teamLeader || team.teamLeader.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Seul le chef d\'équipe peut demander à rejoindre' });
     }
 
-    // Manually check for existing join requests
-    const existingRequest = match.joinRequests.find(
-      request => request.user.toString() === req.user._id.toString() && request.status === 'pending'
-    );
-    if (existingRequest) {
-      return res.status(400).json({ message: 'Vous avez déjà demandé à rejoindre ce match' });
+    if (team.players.length < 6) {
+      return res.status(400).json({ message: 'L\'équipe doit avoir au moins 6 joueurs pour un match de volleyball' });
     }
 
-    // Check for existing invitations
-    const existingInvitation = await Invitation.findOne({
-      userId: req.user._id,
-      quickMatch: match._id,
-      status: { $in: ['pending', 'accepted'] }
-    });
-    if (existingInvitation) {
-      return res.status(400).json({ message: 'Vous avez déjà une invitation active pour ce match' });
+    if (match.team1 && match.team2 && match.team2.toString() !== teamId.toString()) {
+      return res.status(400).json({ message: 'Le match est déjà complet ou l\'équipe ne correspond pas' });
     }
 
-    // Add new join request
-    match.joinRequests.push({
-      user: req.user._id,
-      team: teamId,
-      status: 'pending',
-      requestedAt: new Date()
-    });
+    if (match.joinRequests.some(req => req.team.toString() === teamId)) {
+      return res.status(400).json({ message: 'Demande de participation déjà soumise' });
+    }
+
+    match.joinRequests.push({ team: teamId });
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username');
+      .populate('team1', 'teamName players')
+      .populate('team2', 'teamName players')
+      .populate('creator', 'username')
+      .populate('joinRequests.team', 'teamName');
+
+    res.json(populatedMatch);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Gérer une demande de participation à un match rapide
+exports.handleJoinRequest = async (req, res) => {
+  try {
+    const { teamId, status } = req.body;
+    const match = await QuickMatch.findById(req.params.id);
+
+    if (!match) {
+      return res.status(404).json({ message: 'Match rapide non trouvé' });
+    }
+
+    if (match.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Non autorisé' });
+    }
+
+    const joinRequest = match.joinRequests.find(
+      request => request.team.toString() === teamId
+    );
+
+    if (!joinRequest) {
+      return res.status(404).json({ message: 'Demande de participation non trouvée' });
+    }
+
+    joinRequest.status = status;
+
+    if (status === 'accepted' && !match.team2) {
+      const team = await Team.findById(teamId);
+      if (team.players.length < 6) {
+        return res.status(400).json({ message: 'L\'équipe doit avoir au moins 6 joueurs pour un match de volleyball' });
+      }
+      match.team2 = teamId;
+    }
+
+    await match.save();
+
+    const populatedMatch = await QuickMatch.findById(match._id)
+      .populate('team1', 'teamName players')
+      .populate('team2', 'teamName players')
+      .populate('creator', 'username')
+      .populate('joinRequests.team', 'teamName');
+
+    res.json(populatedMatch);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Rejoindre un match rapide (public uniquement)
+exports.joinQuickMatch = async (req, res) => {
+  try {
+    const match = await QuickMatch.findById(req.params.id);
+
+    if (!match) {
+      return res.status(404).json({ message: 'Match rapide non trouvé' });
+    }
+
+    if (!match.isPublic) {
+      return res.status(403).json({ message: 'Impossible de rejoindre directement un match privé. Veuillez envoyer une demande de participation.' });
+    }
+
+    if (match.team1 && match.team2) {
+      return res.status(400).json({ message: 'Le match est déjà complet' });
+    }
+
+    // Créer ou récupérer une équipe rapide
+    let quickTeam = await Team.findOne({ teamLeader: req.user._id, teamType: 'quick' });
+    if (!quickTeam) {
+      quickTeam = new Team({
+        teamName: `Volley Team ${Date.now()}`,
+        teamLeader: req.user._id,
+        players: [req.user._id],
+        teamType: 'quick'
+      });
+    }
+
+    // Vérifier le nombre de joueurs (simulé, à compléter)
+    if (quickTeam.players.length < 6) {
+      return res.status(400).json({ message: 'L\'équipe doit avoir au moins 6 joueurs pour un match de volleyball' });
+    }
+
+    await quickTeam.save();
+
+    if (!match.team1) {
+      match.team1 = quickTeam._id;
+    } else {
+      match.team2 = quickTeam._id;
+    }
+
+    await match.save();
+
+    const populatedMatch = await QuickMatch.findById(match._id)
+      .populate('team1', 'teamName players')
+      .populate('team2', 'teamName players')
+      .populate('creator', 'username')
+      .populate('joinRequests.team', 'teamName');
 
     res.json(populatedMatch);
   } catch (error) {
@@ -315,29 +221,18 @@ exports.requestToJoinQuickMatch = async (req, res) => {
 exports.getQuickMatches = async (req, res) => {
   try {
     const matches = await QuickMatch.find()
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
+      .populate('team1', 'teamName players')
+      .populate('team2', 'teamName players')
       .populate('creator', 'username')
       .populate('winner', 'teamName')
-      .select('team1 team2 creator isPublic date location terrainType maxSets joinRequests');
-
-    // Inclure les invitations pour chaque match
-    const matchesWithInvitations = await Promise.all(
-      matches.map(async (match) => {
-        const invitations = await Invitation.find({ quickMatch: match._id })
-          .populate('userId', 'username')
-          .populate('team', 'teamName');
-        return { ...match.toObject(), invitations };
-      })
-    );
-
-    res.json(matchesWithInvitations);
+      .populate('joinRequests.team', 'teamName');
+    res.json(matches);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Mettre à jour un match rapide
+// Mettre à jour un match rapide (scores des sets, gagnant, etc.)
 exports.updateQuickMatch = async (req, res) => {
   try {
     const match = await QuickMatch.findById(req.params.id);
@@ -350,27 +245,36 @@ exports.updateQuickMatch = async (req, res) => {
       return res.status(403).json({ message: 'Non autorisé' });
     }
 
-    const { isPublic, date, location, terrainType, maxSets } = req.body;
+    const { sets, score1, score2, winner } = req.body;
 
-    if (date) {
-      const matchDate = new Date(date);
-      if (matchDate <= new Date()) {
-        return res.status(400).json({ message: 'Match date must be in the future' });
+    if (sets) {
+      match.sets = sets;
+      // Calculer les sets gagnés pour déterminer le gagnant
+      const team1SetsWon = match.sets.filter(set => set.team1Score > set.team2Score && (set.team1Score >= 25 || (match.sets.length === match.maxSets && set.team1Score >= 15)) && set.team1Score - set.team2Score >= 2).length;
+      const team2SetsWon = match.sets.filter(set => set.team2Score > set.team1Score && (set.team2Score >= 25 || (match.sets.length === match.maxSets && set.team2Score >= 15)) && set.team2Score - set.team1Score >= 2).length;
+
+      match.score1 = team1SetsWon;
+      match.score2 = team2SetsWon;
+
+      const setsToWin = Math.ceil(match.maxSets / 2);
+      if (team1SetsWon >= setsToWin) {
+        match.winner = match.team1;
+      } else if (team2SetsWon >= setsToWin) {
+        match.winner = match.team2;
       }
-      match.date = matchDate;
     }
 
-    if (isPublic !== undefined) match.isPublic = isPublic;
-    if (location) match.location = location;
-    if (terrainType) match.terrainType = terrainType;
-    if (maxSets) match.maxSets = maxSets;
+    if (score1 !== undefined) match.score1 = score1;
+    if (score2 !== undefined) match.score2 = score2;
+    if (winner) match.winner = winner;
 
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username');
+      .populate('team1', 'teamName players')
+      .populate('team2', 'teamName players')
+      .populate('creator', 'username')
+      .populate('joinRequests.team', 'teamName');
 
     res.json(populatedMatch);
   } catch (error) {
@@ -391,10 +295,7 @@ exports.deleteQuickMatch = async (req, res) => {
       return res.status(403).json({ message: 'Non autorisé' });
     }
 
-    // Supprimer les invitations associées
-    await Invitation.deleteMany({ quickMatch: match._id });
-    await match.deleteOne();
-
+    await match.remove();
     res.json({ message: 'Match rapide supprimé' });
   } catch (error) {
     res.status(500).json({ message: error.message });
