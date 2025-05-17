@@ -7,7 +7,7 @@ exports.createProduct = async (req, res) => {
 
     // Handle photo upload
     if (req.file) {
-      productData.photo = req.file.path; 
+      productData.photo = req.file.path; // e.g., Uploads/1717498895.jpg
     }
 
     const product = new Product(productData);
@@ -23,15 +23,16 @@ exports.createProduct = async (req, res) => {
 exports.getAllProducts = async (req, res) => {
   try {
     const products = await Product.find()
-      .populate('category', 'name'); 
+      .populate('category', 'name'); // Populate category if it’s an ObjectId reference
 
     // Transform photo paths to full URLs
     const productsWithUrls = products.map(product => {
       const productObj = product.toObject();
       if (productObj.photo) {
-        const photoPath = productObj.photo.startsWith('/uploads') 
-          ? productObj.photo.replace('/uploads', '/uploads') 
-          : `/uploads/${productObj.photo.split('/').pop()}`; 
+        // Ensure the path starts with /uploads and includes the full filename
+        const photoPath = productObj.photo.startsWith('/Uploads') 
+          ? productObj.photo.replace('/Uploads', '/uploads') 
+          : `/uploads/${productObj.photo.split('/').pop()}`; // Extract filename
         productObj.photo = `${req.protocol}://${req.get('host')}${photoPath}`;
       }
       return productObj;
