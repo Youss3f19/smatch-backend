@@ -55,8 +55,7 @@ exports.createQuickMatch = async (req, res) => {
     const populatedMatch = await QuickMatch.findById(match._id)
       .populate('team1', 'teamName players teamLeader')
       .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate('creator', 'username');
 
     res.status(201).json(populatedMatch);
   } catch (error) {
@@ -121,8 +120,7 @@ exports.invitePlayerToQuickMatch = async (req, res) => {
     const populatedMatch = await QuickMatch.findById(match._id)
       .populate('team1', 'teamName players teamLeader')
       .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate('creator', 'username');
 
     res.json({
       message: 'Invitation envoyée avec succès',
@@ -195,8 +193,7 @@ exports.handleJoinRequest = async (req, res) => {
     const populatedMatch = await QuickMatch.findById(match._id)
       .populate('team1', 'teamName players teamLeader')
       .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate('creator', 'username');
 
     res.json(populatedMatch);
   } catch (error) {
@@ -239,8 +236,7 @@ exports.joinQuickMatch = async (req, res) => {
     const populatedMatch = await QuickMatch.findById(match._id)
       .populate('team1', 'teamName players teamLeader')
       .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate('creator', 'username');
 
     res.json(populatedMatch);
   } catch (error) {
@@ -277,8 +273,25 @@ exports.requestToJoinQuickMatch = async (req, res) => {
       return res.status(400).json({ message: 'Vous êtes déjà dans une équipe' });
     }
 
-    // La vérification d'une demande unique est gérée par l'index unique dans le schéma
+    // Manually check for existing join requests
+    const existingRequest = match.joinRequests.find(
+      request => request.user.toString() === req.user._id.toString() && request.status === 'pending'
+    );
+    if (existingRequest) {
+      return res.status(400).json({ message: 'Vous avez déjà demandé à rejoindre ce match' });
+    }
 
+    // Check for existing invitations
+    const existingInvitation = await Invitation.findOne({
+      userId: req.user._id,
+      quickMatch: match._id,
+      status: { $in: ['pending', 'accepted'] }
+    });
+    if (existingInvitation) {
+      return res.status(400).json({ message: 'Vous avez déjà une invitation active pour ce match' });
+    }
+
+    // Add new join request
     match.joinRequests.push({
       user: req.user._id,
       team: teamId,
@@ -290,8 +303,7 @@ exports.requestToJoinQuickMatch = async (req, res) => {
     const populatedMatch = await QuickMatch.findById(match._id)
       .populate('team1', 'teamName players teamLeader')
       .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate('creator', 'username');
 
     res.json(populatedMatch);
   } catch (error) {
@@ -307,7 +319,6 @@ exports.getQuickMatches = async (req, res) => {
       .populate('team2', 'teamName players teamLeader')
       .populate('creator', 'username')
       .populate('winner', 'teamName')
-      .populate('joinRequests.user', 'username')
       .select('team1 team2 creator isPublic date location terrainType maxSets joinRequests');
 
     // Inclure les invitations pour chaque match
@@ -359,8 +370,7 @@ exports.updateQuickMatch = async (req, res) => {
     const populatedMatch = await QuickMatch.findById(match._id)
       .populate('team1', 'teamName players teamLeader')
       .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate('creator', 'username');
 
     res.json(populatedMatch);
   } catch (error) {

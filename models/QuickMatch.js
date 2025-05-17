@@ -49,8 +49,6 @@ const quickMatchSchema = new mongoose.Schema({
   }
 });
 
-// Ensure only one join request per user per match
-quickMatchSchema.index({ 'joinRequests.user': 1 }, { unique: true });
 
 // Create a discriminator
 const QuickMatch = Match.discriminator('QuickMatch', quickMatchSchema);
