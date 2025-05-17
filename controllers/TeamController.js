@@ -73,8 +73,8 @@ exports.getAll = async (req, res) => {
 exports.getTeamById = async (req, res) => {
   try {
     const team = await Team.findById(req.params.id)
-      .populate('teamLeader', 'firstName email')
-      .populate('players', 'firstName email');
+      .populate('teamLeader', 'name email')
+      .populate('players', 'name email');
 
     if (!team) {
       return res.status(404).json({ message: 'Team not found' });
@@ -147,8 +147,8 @@ exports.updateTeam = async (req, res) => {
     Object.assign(team, updateData);
     const updatedTeam = await team.save();
     const populatedTeam = await Team.findById(updatedTeam._id)
-      .populate('teamLeader', 'firstName email')
-      .populate('players', 'firstName email');
+      .populate('teamLeader', 'name email')
+      .populate('players', 'name email');
     res.status(200).json(populatedTeam);
   } catch (error) {
     console.error('Error updating team:', error);
