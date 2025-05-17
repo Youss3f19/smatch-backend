@@ -6,10 +6,10 @@ const authorize = require('../middleware/authorize');
 const { upload } = require("../middleware/multerMiddleware");
 
 // Routes des tournois
-router.post('/tournaments', auth, authorize(['player']), TournamentController.createTournament);
+router.post('/tournaments', auth, authorize(['player']), upload.single('file'), TournamentController.createTournament);
 router.get('/tournaments', TournamentController.getAllTournaments);
 router.get('/tournaments/:id', TournamentController.getTournamentById);
-router.put('/tournaments/:id', auth, authorize(['organizer']), TournamentController.updateTournament);
+router.put('/tournaments/:id', auth, authorize(['organizer']), upload.single('file'), TournamentController.updateTournament);
 router.delete('/tournaments/:id', auth, authorize(['organizer']), TournamentController.deleteTournament);
 router.post('/tournaments/:id/join', auth, authorize(['player']), TournamentController.createJoinRequest);
 router.put('/tournaments/:id/join', auth, authorize(['player']), TournamentController.handleJoinRequest);

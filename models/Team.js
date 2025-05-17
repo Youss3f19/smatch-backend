@@ -20,6 +20,9 @@ const teamSchema = new mongoose.Schema({
     enum: ['quick', 'fixed'],
     required: true,
     default: 'quick'
+  },
+  photo: {
+    type: String 
   }
 }, { timestamps: true });
 

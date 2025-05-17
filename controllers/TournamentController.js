@@ -9,7 +9,7 @@ exports.createTournament = async (req, res) => {
   try {
     const { name, startDate, endDate, location, numberTeam, prize, tournamentType, terrainType, maxSets } = req.body;
 
-    const tournament = new Tournament({
+    const tournamentData = {
       name,
       organizer: [req.user._id],
       startDate,
@@ -25,12 +25,20 @@ exports.createTournament = async (req, res) => {
         groups: [],
         rounds: 0
       }
-    });
+    };
+
+    // Handle photo upload
+    if (req.file) {
+      tournamentData.photo = req.file.path;
+    }
+
+    const tournament = new Tournament(tournamentData);
 
     await tournament.save();
     res.status(201).json(tournament);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Error creating tournament:', error);
+    res.status(400).json({ message: 'Error creating tournament', error: error.message });
   }
 };
 
@@ -43,9 +51,10 @@ exports.getAllTournaments = async (req, res) => {
       .populate('structure.matches')
       .populate('structure.groups.teams', 'teamName')
       .populate('structure.groups.matches');
-    res.json(tournaments);
+    res.status(200).json(tournaments);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error retrieving tournaments:', error);
+    res.status(500).json({ message: 'Error retrieving tournaments', error: error.message });
   }
 };
 
@@ -61,9 +70,10 @@ exports.getTournamentById = async (req, res) => {
     if (!tournament) {
       return res.status(404).json({ message: 'Tournoi non trouvé' });
     }
-    res.json(tournament);
+    res.status(200).json(tournament);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error retrieving tournament:', error);
+    res.status(500).json({ message: 'Error retrieving tournament', error: error.message });
   }
 };
 
@@ -79,11 +89,19 @@ exports.updateTournament = async (req, res) => {
       return res.status(403).json({ message: 'Non autorisé' });
     }
 
-    Object.assign(tournament, req.body);
+    const updateData = { ...req.body };
+
+    // Handle photo upload
+    if (req.file) {
+      updateData.photo = req.file.path;
+    }
+
+    Object.assign(tournament, updateData);
     await tournament.save();
-    res.json(tournament);
+    res.status(200).json(tournament);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Error updating tournament:', error);
+    res.status(400).json({ message: 'Error updating tournament', error: error.message });
   }
 };
 
@@ -99,10 +117,11 @@ exports.deleteTournament = async (req, res) => {
       return res.status(403).json({ message: 'Non autorisé' });
     }
 
-    await tournament.remove();
-    res.json({ message: 'Tournoi supprimé' });
+    await tournament.deleteOne();
+    res.status(200).json({ message: 'Tournoi supprimé' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error deleting tournament:', error);
+    res.status(500).json({ message: 'Error deleting tournament', error: error.message });
   }
 };
 
@@ -145,9 +164,10 @@ exports.createJoinRequest = async (req, res) => {
       .populate('teams', 'teamName players')
       .populate('joinRequests.team', 'teamName');
 
-    res.json(populatedTournament);
+    res.status(200).json(populatedTournament);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Error creating join request:', error);
+    res.status(400).json({ message: 'Error creating join request', error: error.message });
   }
 };
 
@@ -190,9 +210,10 @@ exports.handleJoinRequest = async (req, res) => {
       .populate('teams', 'teamName players')
       .populate('joinRequests.team', 'teamName');
 
-    res.json(populatedTournament);
+    res.status(200).json(populatedTournament);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error('Error handling join request:', error);
+    res.status(400).json({ message: 'Error handling join request', error: error.message });
   }
 };
 
@@ -205,10 +226,6 @@ exports.generateTournamentStructure = async (req, res) => {
     if (!tournament) {
       return res.status(404).json({ message: 'Tournoi non trouvé' });
     }
-
-    // if (!tournament.organizer.some(org => org.toString() === req.user._id.toString())) {
-    //   return res.status(403).json({ message: 'Non autorisé' });
-    // }
 
     if (tournament.teams.length < 2) {
       return res.status(400).json({ message: 'Le tournoi doit avoir au moins 2 équipes' });
@@ -266,7 +283,7 @@ exports.generateTournamentStructure = async (req, res) => {
           matches.push(match._id);
           matchesByRound[round - 1].push(match);
 
-          // Lier les matchs de la ronde précédente à ce match
+          // Lier les matchs de la ronde suivante à ce match
           const prevRound = round - 1;
           const prevMatch1 = matchesByRound[prevRound - 1][i * 2];
           const prevMatch2 = matchesByRound[prevRound - 1][i * 2 + 1] || null;
@@ -362,9 +379,10 @@ exports.generateTournamentStructure = async (req, res) => {
       .populate('structure.groups.teams', 'teamName')
       .populate('structure.groups.matches');
 
-    res.json(populatedTournament);
+    res.status(200).json(populatedTournament);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error generating tournament structure:', error);
+    res.status(500).json({ message: 'Error generating tournament structure', error: error.message });
   }
 };
 
@@ -409,7 +427,7 @@ exports.updateMatchResult = async (req, res) => {
       return res.status(400).json({ message: 'Aucune équipe n\'a encore gagné le match.' });
     }
 
-    // ✅ Mettre à jour les scores globaux du match (score1 et score2)
+    // Mettre à jour les scores globaux du match (score1 et score2)
     match.sets = sets;
     match.score1 = team1Wins;
     match.score2 = team2Wins;
@@ -441,9 +459,10 @@ exports.updateMatchResult = async (req, res) => {
       .populate('winner', 'teamName')
       .populate('nextMatch');
 
-    res.json(populatedMatch);
+    res.status(200).json(populatedMatch);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error updating match result:', error);
+    res.status(500).json({ message: 'Error updating match result', error: error.message });
   }
 };
 
@@ -487,8 +506,9 @@ exports.getMatchesByRound = async (req, res) => {
       matchesByRound[match.round].push(match);
     });
 
-    res.json(matchesByRound);
+    res.status(200).json(matchesByRound);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error retrieving matches by round:', error);
+    res.status(500).json({ message: 'Error retrieving matches by round', error: error.message });
   }
 };

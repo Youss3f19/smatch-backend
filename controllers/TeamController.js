@@ -10,13 +10,13 @@ exports.createTeam = async (req, res) => {
     // Check if team name already exists
     const existingTeam = await Team.findOne({ teamName });
     if (existingTeam) {
-      return res.status(400).json({ error: 'Team name already exists' });
+      return res.status(400).json({ message: 'Team name already exists' });
     }
 
     // Verify the team leader exists
     const leader = await User.findById(teamLeader);
     if (!leader) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     // Check if the team leader is already in another fixed team
@@ -28,15 +28,22 @@ exports.createTeam = async (req, res) => {
       ]
     });
     if (leaderInTeam) {
-      return res.status(400).json({ error: 'User is already in another fixed team' });
+      return res.status(400).json({ message: 'User is already in another fixed team' });
     }
 
-    const newTeam = new Team({
+    const teamData = {
       teamName,
       teamLeader,
       players: [teamLeader],
       teamType: 'fixed' // Explicitly set as fixed team for this controller
-    });
+    };
+
+    // Handle photo upload
+    if (req.file) {
+      teamData.photo = req.file.path;
+    }
+
+    const newTeam = new Team(teamData);
 
     await newTeam.save();
     const populatedTeam = await Team.findById(newTeam._id)
@@ -44,7 +51,8 @@ exports.createTeam = async (req, res) => {
       .populate('players', 'firstName email');
     res.status(201).json(populatedTeam);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error creating team:', error);
+    res.status(500).json({ message: 'Error creating team', error: error.message });
   }
 };
 
@@ -54,9 +62,10 @@ exports.getAll = async (req, res) => {
     const teams = await Team.find()
       .populate('teamLeader', 'firstName email')
       .populate('players', 'firstName email');
-    res.json(teams);
+    res.status(200).json(teams);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error retrieving teams:', error);
+    res.status(500).json({ message: 'Error retrieving teams', error: error.message });
   }
 };
 
@@ -68,12 +77,13 @@ exports.getTeamById = async (req, res) => {
       .populate('players', 'firstName email');
 
     if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
+      return res.status(404).json({ message: 'Team not found' });
     }
 
-    res.json(team);
+    res.status(200).json(team);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error retrieving team:', error);
+    res.status(500).json({ message: 'Error retrieving team', error: error.message });
   }
 };
 
@@ -84,25 +94,27 @@ exports.updateTeam = async (req, res) => {
 
     const team = await Team.findById(req.params.id);
     if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
+      return res.status(404).json({ message: 'Team not found' });
     }
 
     // Only allow team leader to update the team
     if (!team.teamLeader || team.teamLeader.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: 'Only team leader can update the team' });
+      return res.status(403).json({ message: 'Only team leader can update the team' });
     }
 
     // Prevent changing teamType
     if (req.body.teamType && req.body.teamType !== team.teamType) {
-      return res.status(400).json({ error: 'Cannot change team type' });
+      return res.status(400).json({ message: 'Cannot change team type' });
     }
+
+    const updateData = {};
 
     if (teamName) {
       const existingTeam = await Team.findOne({ teamName });
       if (existingTeam && existingTeam._id.toString() !== team._id.toString()) {
-        return res.status(400).json({ error: 'Team name already exists' });
+        return res.status(400).json({ message: 'Team name already exists' });
       }
-      team.teamName = teamName;
+      updateData.teamName = teamName;
     }
 
     if (players) {
@@ -120,20 +132,27 @@ exports.updateTeam = async (req, res) => {
           ]
         });
         if (playerInTeam) {
-          return res.status(400).json({ error: `User with ID ${playerId} is already in another fixed team` });
+          return res.status(400).json({ message: `User with ID ${playerId} is already in another fixed team` });
         }
       }
 
-      team.players = updatedPlayers;
+      updateData.players = updatedPlayers;
     }
 
+    // Handle photo upload
+    if (req.file) {
+      updateData.photo = req.file.path;
+    }
+
+    Object.assign(team, updateData);
     const updatedTeam = await team.save();
     const populatedTeam = await Team.findById(updatedTeam._id)
       .populate('teamLeader', 'firstName email')
       .populate('players', 'firstName email');
-    res.json(populatedTeam);
+    res.status(200).json(populatedTeam);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error updating team:', error);
+    res.status(500).json({ message: 'Error updating team', error: error.message });
   }
 };
 
@@ -142,17 +161,18 @@ exports.deleteTeam = async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
     if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
+      return res.status(404).json({ message: 'Team not found' });
     }
 
     // Only allow team leader to delete the team
     if (!team.teamLeader || team.teamLeader.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: 'Only team leader can delete the team' });
+      return res.status(403).json({ message: 'Only team leader can delete the team' });
     }
 
     await Team.deleteOne({ _id: req.params.id });
-    res.json({ message: 'Team deleted successfully' });
+    res.status(200).json({ message: 'Team deleted successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error deleting team:', error);
+    res.status(500).json({ message: 'Error deleting team', error: error.message });
   }
 };
