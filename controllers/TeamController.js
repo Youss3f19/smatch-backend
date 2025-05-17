@@ -60,8 +60,8 @@ exports.createTeam = async (req, res) => {
 exports.getAll = async (req, res) => {
   try {
     const teams = await Team.find()
-      .populate('teamLeader', 'firstName email')
-      .populate('players', 'firstName email');
+      .populate('teamLeader', 'name email')
+      .populate('players', 'name email');
     res.status(200).json(teams);
   } catch (error) {
     console.error('Error retrieving teams:', error);
