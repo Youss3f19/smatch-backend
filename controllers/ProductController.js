@@ -24,7 +24,17 @@ exports.getAllProducts = async (req, res) => {
   try {
     const products = await Product.find()
       .populate('category', 'name'); // Populate category if it’s an ObjectId reference
-    res.status(200).json(products);
+
+    // Transform photo paths to full URLs
+    const productsWithUrls = products.map(product => {
+      const productObj = product.toObject();
+      if (productObj.photo) {
+        productObj.photo = `${req.protocol}://${req.get('host')}/${productObj.photo}`;
+      }
+      return productObj;
+    });
+
+    res.status(200).json(productsWithUrls);
   } catch (err) {
     console.error('Error retrieving products:', err);
     res.status(500).json({ message: 'Error retrieving products', error: err.message });
