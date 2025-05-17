@@ -55,10 +55,27 @@ exports.createQuickMatch = async (req, res) => {
 
     // Peupler les champs pour la réponse
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate({
+        path: 'team1',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'team2',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate('creator', 'name')
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name'
+      });
 
     res.status(201).json(populatedMatch);
   } catch (error) {
@@ -98,7 +115,6 @@ exports.invitePlayerToQuickMatch = async (req, res) => {
       return res.status(400).json({ message: 'Le joueur est déjà dans cette équipe' });
     }
 
-    // Ajouter une demande d'invitation (simulée ici, à adapter avec un modèle Invitation si nécessaire)
     match.joinRequests.push({
       user: playerId,
       team: teamId,
@@ -107,10 +123,27 @@ exports.invitePlayerToQuickMatch = async (req, res) => {
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate({
+        path: 'team1',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'team2',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate('creator', 'name')
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name'
+      });
 
     res.json({
       message: 'Invitation envoyée avec succès',
@@ -168,10 +201,27 @@ exports.joinQuickMatch = async (req, res) => {
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate({
+        path: 'team1',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'team2',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate('creator', 'name')
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name'
+      });
 
     res.json(populatedMatch);
   } catch (error) {
@@ -218,10 +268,27 @@ exports.requestToJoinQuickMatch = async (req, res) => {
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate({
+        path: 'team1',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'team2',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate('creator', 'name')
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name'
+      });
 
     res.json(populatedMatch);
   } catch (error) {
@@ -270,10 +337,27 @@ exports.handleJoinRequest = async (req, res) => {
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate({
+        path: 'team1',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'team2',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate('creator', 'name')
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name'
+      });
 
     res.json(populatedMatch);
   } catch (error) {
@@ -285,12 +369,66 @@ exports.handleJoinRequest = async (req, res) => {
 exports.getQuickMatches = async (req, res) => {
   try {
     const matches = await QuickMatch.find()
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
+      .populate({
+        path: 'team1',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'team2',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate('creator', 'name')
       .populate('winner', 'teamName')
-      .populate('joinRequests.user', 'username');
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name'
+      });
     res.json(matches);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Obtenir un match rapide par ID
+exports.getQuickMatchById = async (req, res) => {
+  try {
+    const match = await QuickMatch.findById(req.params.id)
+      .populate({
+        path: 'team1',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'team2',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate('creator', 'name')
+      .populate('winner', 'teamName')
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name'
+      });
+
+    if (!match) {
+      return res.status(404).json({ message: 'Match rapide non trouvé' });
+    }
+
+    res.json(match);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -309,7 +447,7 @@ exports.updateQuickMatch = async (req, res) => {
       return res.status(403).json({ message: 'Non autorisé' });
     }
 
-    const { sets, score1, score2, winner } = req.body;
+    const { sets, score1, score2, winner, isPublic, date, location, terrainType, maxSets } = req.body;
 
     if (sets) {
       match.sets = sets;
@@ -330,14 +468,42 @@ exports.updateQuickMatch = async (req, res) => {
     if (score1 !== undefined) match.score1 = score1;
     if (score2 !== undefined) match.score2 = score2;
     if (winner) match.winner = winner;
+    if (isPublic !== undefined) match.isPublic = isPublic;
+    if (date) {
+      const matchDate = new Date(date);
+      if (matchDate <= new Date()) {
+        return res.status(400).json({ message: 'Match date must be in the future' });
+      }
+      match.date = matchDate;
+    }
+    if (location) match.location = location;
+    if (terrainType) match.terrainType = terrainType;
+    if (maxSets) match.maxSets = maxSets;
 
     await match.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
-      .populate('team1', 'teamName players teamLeader')
-      .populate('team2', 'teamName players teamLeader')
-      .populate('creator', 'username')
-      .populate('joinRequests.user', 'username');
+      .populate({
+        path: 'team1',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'team2',
+        select: 'teamName players teamLeader',
+        populate: [
+          { path: 'players', select: 'name' },
+          { path: 'teamLeader', select: 'name' }
+        ]
+      })
+      .populate('creator', 'name')
+      .populate({
+        path: 'joinRequests.user',
+        select: 'name'
+      });
 
     res.json(populatedMatch);
   } catch (error) {
