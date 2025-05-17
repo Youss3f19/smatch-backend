@@ -3,6 +3,7 @@ const router = express.Router();
 const TournamentController = require('../controllers/TournamentController');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
+const { upload } = require("../middleware/multerMiddleware");
 
 // Routes des tournois
 router.post('/tournaments', auth, authorize(['player']), TournamentController.createTournament);

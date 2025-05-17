@@ -40,7 +40,7 @@ exports.login = (req, res) => {
                 let payload = {
                     _id: user._id,
                     email: user.email,
-                    name : user.name ,
+                    name: user.name,
                     role: user.role
                 };
                 let token = jwt.sign(payload, '123456789');
@@ -70,18 +70,32 @@ exports.updateUser = async (req, res) => {
   try {
     const updateData = { ...req.body };
 
+    // Handle profile picture upload
     if (req.file) {
-      updateData.profilePicture = req.file.path; 
+      updateData.profilePicture = req.file.path;
     }
 
-    const user = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    // Check for player fields and upgrade to player if all are provided
+    const playerFields = ['phone', 'address', 'birthDate', 'position'];
+    const hasPlayerFields = playerFields.every(field => updateData[field] !== undefined);
+    const user = await User.findById(req.params.id);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
-    res.status(200).json({ message: 'User updated successfully', user });
+
+    if (hasPlayerFields && user.role !== 'player') {
+      updateData.role = 'player';
+      if (updateData.birthDate) {
+        updateData.birthDate = new Date(updateData.birthDate);
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
+
+    res.status(200).json({ message: 'User updated successfully', user: updatedUser });
   } catch (error) {
+    console.error('Error updating user:', error);
     res.status(500).json({ message: 'Error updating user', error });
   }
 };
@@ -93,50 +107,5 @@ exports.getAllUsers = async (req, res) => {
     res.status(200).json(users);
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving users', error });
-  }
-};
-
-// Upgrade user to player
-exports.upgradeToPlayer = async (req, res) => {
-  try {
-    const userId = req.params.id;
-    const { phone, address, birthDate, position } = req.body;
-
-    // Validate required fields
-    if (!phone || !address || !birthDate || !position) {
-      return res.status(400).json({ message: 'All player fields (phone, address, birthDate, position) are required' });
-    }
-
-    // Find user
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Check if user is already a player
-    if (user.role === 'player') {
-      return res.status(400).json({ message: 'User is already a player' });
-    }
-
-    // Update user with player information
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        phone,
-        address,
-        birthDate: new Date(birthDate),
-        position,
-        role: 'player'
-      },
-      { new: true }
-    );
-
-    res.status(200).json({
-      message: 'Successfully upgraded to player',
-      user: updatedUser
-    });
-  } catch (error) {
-    console.error('Error upgrading to player:', error);
-    res.status(500).json({ message: 'Error upgrading to player', error });
   }
 };
