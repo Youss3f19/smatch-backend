@@ -1,15 +1,13 @@
+const path = require('path');
 const Product = require('../models/Product');
 
 // Create a new product
 exports.createProduct = async (req, res) => {
   try {
     const productData = { ...req.body };
-
-    // Handle photo upload
     if (req.file) {
-      productData.photo = req.file.path; // e.g., Uploads/1717498895.jpg
+      productData.photo = req.file.path;
     }
-
     const product = new Product(productData);
     const saved = await product.save();
     res.status(201).json(saved);
@@ -19,25 +17,23 @@ exports.createProduct = async (req, res) => {
   }
 };
 
+// Helper pour générer URL complète
+const buildFullPhotoUrl = (req, photoPath) => {
+  const filename = photoPath?.split(/[\\/]/).pop();
+  return `${req.protocol}://${req.get('host')}/uploads/${filename}`;
+};
+
 // Get all products
 exports.getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find()
-      .populate('category', 'name'); // Populate category if it’s an ObjectId reference
-
-    // Transform photo paths to full URLs
+    const products = await Product.find().populate('category', 'name');
     const productsWithUrls = products.map(product => {
       const productObj = product.toObject();
       if (productObj.photo) {
-        // Ensure the path starts with /uploads and includes the full filename
-        const photoPath = productObj.photo.startsWith('/Uploads') 
-          ? productObj.photo.replace('/Uploads', '/uploads') 
-          : `/uploads/${productObj.photo.split('/').pop()}`; // Extract filename
-        productObj.photo = `${req.protocol}://${req.get('host')}${photoPath}`;
+        productObj.photo = buildFullPhotoUrl(req, productObj.photo);
       }
       return productObj;
     });
-
     res.status(200).json(productsWithUrls);
   } catch (err) {
     console.error('Error retrieving products:', err);
@@ -45,16 +41,39 @@ exports.getAllProducts = async (req, res) => {
   }
 };
 
-// Get a product by ID
+// Get product by ID
 exports.getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id)
-      .populate('category', 'name'); 
+    const product = await Product.findById(req.params.id).populate('category', 'name');
     if (!product) return res.status(404).json({ message: 'Product not found' });
-    res.status(200).json(product);
+
+    const productObj = product.toObject();
+    if (productObj.photo) {
+      productObj.photo = buildFullPhotoUrl(req, productObj.photo);
+    }
+
+    res.status(200).json(productObj);
   } catch (err) {
     console.error('Error retrieving product:', err);
     res.status(500).json({ message: 'Error retrieving product', error: err.message });
+  }
+};
+
+// Get products by category
+exports.getProductsByCategory = async (req, res) => {
+  try {
+    const products = await Product.find({ category: req.params.categoryId }).populate('category', 'name');
+    const productsWithUrls = products.map(product => {
+      const productObj = product.toObject();
+      if (productObj.photo) {
+        productObj.photo = buildFullPhotoUrl(req, productObj.photo);
+      }
+      return productObj;
+    });
+    res.status(200).json(productsWithUrls);
+  } catch (err) {
+    console.error('Error retrieving products by category:', err);
+    res.status(500).json({ message: 'Error retrieving products by category', error: err.message });
   }
 };
 
@@ -62,16 +81,19 @@ exports.getProductById = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const updateData = { ...req.body };
-
-    // Handle photo upload
     if (req.file) {
-      updateData.photo = req.file.path; 
+      updateData.photo = req.file.path;
     }
 
-    const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true })
-      .populate('category', 'name'); 
+    const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('category', 'name');
     if (!updated) return res.status(404).json({ message: 'Product not found' });
-    res.status(200).json(updated);
+
+    const productObj = updated.toObject();
+    if (productObj.photo) {
+      productObj.photo = buildFullPhotoUrl(req, productObj.photo);
+    }
+
+    res.status(200).json(productObj);
   } catch (err) {
     console.error('Error updating product:', err);
     res.status(500).json({ message: 'Error updating product', error: err.message });
@@ -87,17 +109,5 @@ exports.deleteProduct = async (req, res) => {
   } catch (err) {
     console.error('Error deleting product:', err);
     res.status(500).json({ message: 'Error deleting product', error: err.message });
-  }
-};
-
-// Get products by category
-exports.getProductsByCategory = async (req, res) => {
-  try {
-    const products = await Product.find({ category: req.params.categoryId })
-      .populate('category', 'name');
-    res.status(200).json(products);
-  } catch (err) {
-    console.error('Error retrieving products by category:', err);
-    res.status(500).json({ message: 'Error retrieving products by category', error: err.message });
   }
 };
