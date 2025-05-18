@@ -79,6 +79,7 @@ exports.createQuickMatch = async (req, res) => {
 
     res.status(201).json(populatedMatch);
   } catch (error) {
+    console.error('Error creating quick match:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -113,6 +114,18 @@ exports.invitePlayerToQuickMatch = async (req, res) => {
 
     if (team.players.includes(playerId)) {
       return res.status(400).json({ message: 'Le joueur est déjà dans cette équipe' });
+    }
+
+    // Check if player is in the opposing team
+    const opposingTeamId = match.team1.toString() === teamId ? match.team2 : match.team1;
+    const opposingTeam = await Team.findById(opposingTeamId);
+    if (opposingTeam.players.includes(playerId)) {
+      return res.status(400).json({ message: 'Le joueur est déjà dans l\'équipe adverse' });
+    }
+
+    // Check if player has a pending join request for the opposing team
+    if (match.joinRequests.some(req => req.user.toString() === playerId && req.team.toString() === opposingTeamId)) {
+      return res.status(400).json({ message: 'Le joueur a une demande en attente pour l\'équipe adverse' });
     }
 
     match.joinRequests.push({
@@ -150,6 +163,7 @@ exports.invitePlayerToQuickMatch = async (req, res) => {
       match: populatedMatch
     });
   } catch (error) {
+    console.error('Error inviting player:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -168,37 +182,32 @@ exports.joinQuickMatch = async (req, res) => {
       return res.status(403).json({ message: 'Ce match est privé. Veuillez demander à rejoindre.' });
     }
 
-    if (match.team1 && match.team2 && ![match.team1.toString(), match.team2.toString()].includes(teamId)) {
-      return res.status(400).json({ message: 'Le match est complet ou l\'équipe n\'est pas valide' });
+    if (![match.team1.toString(), match.team2.toString()].includes(teamId)) {
+      return res.status(400).json({ message: 'Équipe invalide pour ce match' });
     }
 
-    let quickTeam = await Team.findById(teamId);
-    if (!quickTeam) {
-      quickTeam = new Team({
-        teamName: `Volley Team ${Date.now()}`,
-        teamLeader: req.user._id,
-        players: [req.user._id],
-        teamType: 'quick'
-      });
-      await quickTeam.save();
+    const team = await Team.findById(teamId);
+    if (!team) {
+      return res.status(404).json({ message: 'Équipe non trouvée' });
     }
 
-    if (quickTeam.players.length >= 6) {
+    if (team.players.length >= 6) {
       return res.status(400).json({ message: 'L\'équipe a déjà atteint la limite de 6 joueurs' });
     }
 
-    if (!quickTeam.players.includes(req.user._id)) {
-      quickTeam.players.push(req.user._id);
-      await quickTeam.save();
+    if (team.players.includes(req.user._id)) {
+      return res.status(400).json({ message: 'Vous êtes déjà dans cette équipe' });
     }
 
-    if (!match.team1 || (match.team1.toString() === teamId && match.team2)) {
-      match.team1 = quickTeam._id;
-    } else if (!match.team2) {
-      match.team2 = quickTeam._id;
+    // Check if user is in the opposing team
+    const opposingTeamId = match.team1.toString() === teamId ? match.team2 : match.team1;
+    const opposingTeam = await Team.findById(opposingTeamId);
+    if (opposingTeam.players.includes(req.user._id)) {
+      return res.status(400).json({ message: 'Vous êtes déjà dans l\'équipe adverse' });
     }
 
-    await match.save();
+    team.players.push(req.user._id);
+    await team.save();
 
     const populatedMatch = await QuickMatch.findById(match._id)
       .populate({
@@ -225,6 +234,7 @@ exports.joinQuickMatch = async (req, res) => {
 
     res.json(populatedMatch);
   } catch (error) {
+    console.error('Error joining quick match:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -256,8 +266,16 @@ exports.requestToJoinQuickMatch = async (req, res) => {
       return res.status(400).json({ message: 'Vous êtes déjà dans cette équipe' });
     }
 
-    if (match.joinRequests.some(req => req.user.toString() === req.user._id.toString() && req.team.toString() === teamId)) {
-      return res.status(400).json({ message: 'Demande de participation déjà soumise' });
+    // Check if user is in the opposing team
+    const opposingTeamId = match.team1.toString() === teamId ? match.team2 : match.team1;
+    const opposingTeam = await Team.findById(opposingTeamId);
+    if (opposingTeam.players.includes(req.user._id)) {
+      return res.status(400).json({ message: 'Vous êtes déjà dans l\'équipe adverse' });
+    }
+
+    // Check if user has a pending request for either team
+    if (match.joinRequests.some(req => req.user.toString() === req.user._id.toString())) {
+      return res.status(400).json({ message: 'Vous avez déjà une demande en attente pour ce match' });
     }
 
     match.joinRequests.push({
@@ -292,6 +310,7 @@ exports.requestToJoinQuickMatch = async (req, res) => {
 
     res.json(populatedMatch);
   } catch (error) {
+    console.error('Error requesting to join quick match:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -322,8 +341,17 @@ exports.handleJoinRequest = async (req, res) => {
 
     if (status === 'accepted') {
       const team = await Team.findById(teamId);
+      if (!team) {
+        return res.status(404).json({ message: 'Équipe non trouvée' });
+      }
       if (team.players.length >= 6) {
         return res.status(400).json({ message: 'L\'équipe a déjà atteint la limite de 6 joueurs' });
+      }
+      // Check if user is in the opposing team
+      const opposingTeamId = match.team1.toString() === teamId ? match.team2 : match.team1;
+      const opposingTeam = await Team.findById(opposingTeamId);
+      if (opposingTeam.players.includes(userId)) {
+        return res.status(400).json({ message: 'Le joueur est déjà dans l\'équipe adverse' });
       }
       if (!team.players.includes(userId)) {
         team.players.push(userId);
@@ -331,8 +359,9 @@ exports.handleJoinRequest = async (req, res) => {
       }
     }
 
+    // Remove the join request
     match.joinRequests = match.joinRequests.filter(
-      request => request.user.toString() !== userId || request.team.toString() !== teamId
+      request => !(request.user.toString() === userId && request.team.toString() === teamId)
     );
     await match.save();
 
@@ -361,6 +390,7 @@ exports.handleJoinRequest = async (req, res) => {
 
     res.json(populatedMatch);
   } catch (error) {
+    console.error('Error handling join request:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -393,6 +423,7 @@ exports.getQuickMatches = async (req, res) => {
       });
     res.json(matches);
   } catch (error) {
+    console.error('Error getting quick matches:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -430,6 +461,7 @@ exports.getQuickMatchById = async (req, res) => {
 
     res.json(match);
   } catch (error) {
+    console.error('Error getting quick match by ID:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -507,6 +539,7 @@ exports.updateQuickMatch = async (req, res) => {
 
     res.json(populatedMatch);
   } catch (error) {
+    console.error('Error updating quick match:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -524,9 +557,10 @@ exports.deleteQuickMatch = async (req, res) => {
       return res.status(403).json({ message: 'Non autorisé' });
     }
 
-    await match.remove();
+    await match.deleteOne();
     res.json({ message: 'Match rapide supprimé' });
   } catch (error) {
+    console.error('Error deleting quick match:', error);
     res.status(500).json({ message: error.message });
   }
 };

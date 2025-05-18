@@ -4,7 +4,7 @@ const TournamentController = require('../controllers/TournamentController');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/authorize');
 const { upload } = require("../middleware/multerMiddleware");
-gi
+
 // Routes des tournois
 router.post('/tournaments', auth, authorize(['admin','organizer']), upload.single('file'), TournamentController.createTournament);
 router.get('/tournaments', TournamentController.getAllTournaments);
