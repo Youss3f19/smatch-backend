@@ -146,7 +146,7 @@ exports.getAllUsers = async (req, res) => {
     const usersResponse = users.map(user => {
       const userObj = user.toObject();
       if (userObj.profilePicture) {
-        userObj.profilePicture = `${req.protocol}://${req.get('host')}/uploads/${path.basename(userObj.profilePicture)}`;
+          userObj.profilePicture = `${req.protocol}://${req.get('host')}/uploads/${path.basename(userObj.profilePicture)}`;      
       }
       return userObj;
     });

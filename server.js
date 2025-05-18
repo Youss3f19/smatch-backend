@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('./config/connect'); // Database connection
+const path = require('path');
 
 const app = express();
 
@@ -8,6 +9,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+
+// Pour que les images soient accessibles via /uploads/filename.png
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // Routes
 const userRoutes = require('./routes/userRoutes');
