@@ -24,7 +24,7 @@ exports.createTournament = async (req, res) => {
         matches: [],
         groups: [],
         rounds: 0
-      }
+      },
     };
 
     // Handle photo upload
@@ -85,9 +85,7 @@ exports.updateTournament = async (req, res) => {
       return res.status(404).json({ message: 'Tournoi non trouvé' });
     }
 
-    if (!tournament.organizer.some(org => org.toString() === req.user._id.toString())) {
-      return res.status(403).json({ message: 'Non autorisé' });
-    }
+
 
     const updateData = { ...req.body };
 
@@ -510,5 +508,38 @@ exports.getMatchesByRound = async (req, res) => {
   } catch (error) {
     console.error('Error retrieving matches by round:', error);
     res.status(500).json({ message: 'Error retrieving matches by round', error: error.message });
+  }
+};
+
+// Lister les équipes participantes d'un tournoi
+exports.getTournamentTeams = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.id)
+      .populate('teams', 'teamName teamLeader players')
+      .populate('joinRequests.team', 'teamName');
+
+    if (!tournament) {
+      return res.status(404).json({ message: 'Tournoi non trouvé' });
+    }
+
+    const response = {
+      teams: tournament.teams.map(team => ({
+        id: team._id,
+        teamName: team.teamName,
+        teamLeader: team.teamLeader,
+        playerCount: team.players.length
+      })),
+      joinRequests: tournament.joinRequests.map(req => ({
+        teamId: req.team._id,
+        teamName: req.team.teamName,
+        status: req.status,
+        createdAt: req.createdAt
+      }))
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error retrieving tournament teams:', error);
+    res.status(500).json({ message: 'Error retrieving tournament teams', error: error.message });
   }
 };

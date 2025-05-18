@@ -11,6 +11,10 @@ const tournamentSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  photo:{
+    type: String,
+  }
+  ,
   organizer: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   startDate: {
     type: Date,
